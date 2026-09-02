@@ -171,6 +171,7 @@
   .status-row.info .dot { background: var(--warn); }
   .status-row .label { font-weight: 500; color: var(--text); }
   .status-row .detail { color: var(--text-muted); margin-top: 2px; }
+  .meaning { color: var(--text); display: inline-block; margin-top: 4px; }
   .status-row .record {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
@@ -264,30 +265,30 @@
 
     if (data.spf.found) {
       emailAuthRows.appendChild(statusRow('pass', 'SPF record found',
-        data.spf.strict ? 'Uses a strict fail policy, unauthorized servers are rejected.' :
-        data.spf.soft ? 'Uses a soft fail policy, unauthorized mail is flagged but not always rejected.' :
+        data.spf.strict ? 'Good. Uses a strict fail policy, mail from unauthorized servers is rejected.' :
+        data.spf.soft ? 'OK, but not strict. Uses a soft fail policy, unauthorized mail is flagged but not always rejected.' :
         'Present, but its fail policy could not be determined.', data.spf.record));
     } else {
       emailAuthRows.appendChild(statusRow('fail', 'No SPF record found',
-        'Without SPF, anyone can send email that appears to come from this domain.'));
+        'Risk. Without SPF, anyone can send email that appears to come from this domain, a common trick in phishing.'));
     }
 
     if (data.dkim.found) {
       emailAuthRows.appendChild(statusRow('pass', 'DKIM record found (selector: ' + data.dkim.selector + ')',
-        'This domain signs outgoing mail so receivers can verify it was not altered in transit.', data.dkim.record));
+        'Good. This domain signs outgoing mail so receivers can verify it was not altered in transit.', data.dkim.record));
     } else {
       emailAuthRows.appendChild(statusRow('info', 'No DKIM record found with common selectors',
-        'DKIM selectors are not publicly listed, so this checks common ones (' + data.dkim.checkedSelectors.slice(0, 5).join(', ') + ', and others). A missing result here does not always mean DKIM is absent.'));
+        'Inconclusive. DKIM selectors are not publicly listed, so this checks common ones (' + data.dkim.checkedSelectors.slice(0, 5).join(', ') + ', and others). A missing result here does not always mean DKIM is absent.'));
     }
 
     if (data.dmarc.found) {
       const strong = data.dmarc.policy === 'reject' || data.dmarc.policy === 'quarantine';
       emailAuthRows.appendChild(statusRow(strong ? 'pass' : 'info', 'DMARC record found, policy: ' + data.dmarc.policy,
-        strong ? 'Mail that fails SPF or DKIM checks will be rejected or quarantined.' :
-        'Policy is set to "none", meaning failing mail is monitored but still delivered.', data.dmarc.record));
+        strong ? 'Good. Mail that fails SPF or DKIM checks will be rejected or quarantined instead of delivered.' :
+        'Weak. Policy is set to "none", so mail that fails checks is only reported, not blocked.', data.dmarc.record));
     } else {
       emailAuthRows.appendChild(statusRow('fail', 'No DMARC record found',
-        'Without DMARC, there is no policy telling mail providers what to do with spoofed messages from this domain.'));
+        'Risk. Without DMARC, there is no policy telling mail providers what to do with spoofed messages from this domain.'));
     }
   }
 
@@ -298,10 +299,12 @@
       return;
     }
     data.grade.details.forEach((h) => {
+      const detail = h.desc + '<br><span class="meaning">' + h.meaning + '</span>';
       headerRows.appendChild(statusRow(h.present ? 'pass' : 'fail', h.label,
-        h.desc, h.present ? String(h.value) : null));
+        detail, h.present ? String(h.value) : null));
     });
   }
+
 
   function renderMx(data) {
     mxRows.innerHTML = '';
@@ -319,6 +322,7 @@
     gradeBadge.className = 'grade-badge ' + data.grade.letter.toLowerCase();
     gradeMeta.innerHTML =
       '<strong>' + data.domain + '</strong> scores ' + data.grade.pct + '% on security headers.<br>' +
+      '<span class="meaning">' + data.grade.summary + '</span><br>' +
       'This grade reflects response headers only, not SPF, DKIM, or DMARC, which are shown separately below.';
   }
 

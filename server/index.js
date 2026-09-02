@@ -32,19 +32,33 @@ const COMMON_DKIM_SELECTORS = [
 
 const SECURITY_HEADERS = [
   { key: 'strict-transport-security', label: 'Strict-Transport-Security', weight: 20,
-    desc: 'Forces browsers to only ever connect over HTTPS, preventing protocol downgrade attacks.' },
+    desc: 'Forces browsers to only ever connect over HTTPS, preventing protocol downgrade attacks.',
+    good: 'Good. An attacker on the same network cannot downgrade this connection to unencrypted HTTP.',
+    risk: 'Someone on the same network, for example public WiFi, could potentially force a visitor onto an unencrypted HTTP connection and intercept traffic.' },
   { key: 'content-security-policy', label: 'Content-Security-Policy', weight: 25,
-    desc: 'Restricts which scripts, styles, and resources can load, the single strongest defense against XSS.' },
+    desc: 'Restricts which scripts, styles, and resources can load, the single strongest defense against XSS.',
+    good: 'Good. Even if an attacker injects a malicious script into the page, the browser is told not to run it.',
+    risk: 'If an attacker finds a way to inject a script into this page, for example through a comment field or a vulnerable plugin, the browser has no extra instructions telling it to block that script from running.' },
   { key: 'x-frame-options', label: 'X-Frame-Options', weight: 15,
-    desc: 'Prevents the site from being embedded in a hidden iframe, a common clickjacking technique.' },
+    desc: 'Prevents the site from being embedded in a hidden iframe, a common clickjacking technique.',
+    good: 'Good. This page cannot be loaded inside a hidden frame on another site.',
+    risk: 'This page could be loaded inside an invisible frame on a malicious site, tricking visitors into clicking something they did not intend to, known as clickjacking.' },
   { key: 'x-content-type-options', label: 'X-Content-Type-Options', weight: 10,
-    desc: 'Stops browsers from guessing content types in a way that can be abused to run untrusted files as scripts.' },
+    desc: 'Stops browsers from guessing content types in a way that can be abused to run untrusted files as scripts.',
+    good: 'Good. Browsers are told to trust the declared file type instead of guessing it.',
+    risk: 'A browser could be tricked into guessing that an uploaded file, for example an image, is actually a script, and run it.' },
   { key: 'referrer-policy', label: 'Referrer-Policy', weight: 10,
-    desc: 'Controls how much of the current URL is leaked to other sites when a user clicks a link.' },
+    desc: 'Controls how much of the current URL is leaked to other sites when a user clicks a link.',
+    good: 'Good. The site limits how much of its URL is shared with other sites when a visitor clicks a link.',
+    risk: 'The full page URL, which can include search terms or other sensitive details in the address, may be sent along to whatever site a visitor clicks through to.' },
   { key: 'permissions-policy', label: 'Permissions-Policy', weight: 10,
-    desc: 'Restricts access to sensitive browser features like camera, microphone, and geolocation.' },
+    desc: 'Restricts access to sensitive browser features like camera, microphone, and geolocation.',
+    good: 'Good. Access to sensitive features like camera, microphone, and location is explicitly locked down.',
+    risk: 'Embedded content or third party scripts on this page are not explicitly blocked from requesting access to a visitor camera, microphone, or location.' },
   { key: 'x-xss-protection', label: 'X-XSS-Protection', weight: 5,
-    desc: 'A legacy header for older browsers, largely superseded by Content-Security-Policy.' },
+    desc: 'A legacy header for older browsers, largely superseded by Content-Security-Policy.',
+    good: 'Present. This only matters on old browsers, modern ones rely on Content-Security-Policy instead.',
+    risk: 'Minor. This is a legacy header for old browsers and has little effect on modern ones, Content-Security-Policy matters far more.' },
 ];
 
 function isPrivateIp(ip) {
@@ -188,16 +202,17 @@ function gradeFromHeaders(headers) {
     max += h.weight;
     const present = Boolean(headers[h.key]);
     if (present) score += h.weight;
-    return { ...h, present, value: headers[h.key] || null };
+    return { ...h, present, value: headers[h.key] || null, meaning: present ? h.good : h.risk };
   });
   const pct = max === 0 ? 0 : Math.round((score / max) * 100);
   let letter;
-  if (pct >= 90) letter = 'A';
-  else if (pct >= 75) letter = 'B';
-  else if (pct >= 55) letter = 'C';
-  else if (pct >= 35) letter = 'D';
-  else letter = 'F';
-  return { letter, pct, details };
+  let summary;
+  if (pct >= 90) { letter = 'A'; summary = 'Strong. This site has nearly all the recommended browser security headers in place.'; }
+  else if (pct >= 75) { letter = 'B'; summary = 'Good. Most of the recommended browser security headers are in place, with a couple of minor gaps.'; }
+  else if (pct >= 55) { letter = 'C'; summary = 'Fair. The basics are missing in a few places. These are extra layers of defense, not a sign the site is unsafe to use.'; }
+  else if (pct >= 35) { letter = 'D'; summary = 'Weak. Several recommended headers are missing, leaving fewer safety nets against common browser based attacks.'; }
+  else { letter = 'F'; summary = 'Poor. Most recommended headers are missing. This does not mean the site has been breached, but it is not following current best practices.'; }
+  return { letter, pct, summary, details };
 }
 
 app.get('/api/check', async (req, res) => {
