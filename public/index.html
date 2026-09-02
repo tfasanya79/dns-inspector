@@ -336,7 +336,7 @@
     scanBtn.textContent = 'Scanning...';
 
     try {
-      const res = await fetch('/api/check?domain=' + encodeURIComponent(domain));
+      const res = await fetch('api/check?domain=' + encodeURIComponent(domain));
       const data = await res.json();
 
       if (!res.ok) {
