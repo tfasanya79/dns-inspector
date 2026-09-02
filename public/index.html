@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>inspect. : DNS and Security Header Inspector</title>
+<meta name="description" content="Check a domain's SPF, DKIM, and DMARC email authentication, plus its security headers, all in one place.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B1220;
+    --panel: #131B2C;
+    --panel-2: #0F1729;
+    --border: #26334A;
+    --text: #E7EDF5;
+    --text-muted: #7C8CA6;
+    --good: #5EEAD4;
+    --good-dim: #1F4A45;
+    --warn: #F5A97F;
+    --warn-dim: #4A3423;
+    --bad: #F87171;
+    --bad-dim: #4A1F1F;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  header {
+    padding: 28px clamp(20px, 4vw, 48px) 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  header .wordmark {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header .wordmark span { color: var(--text-muted); font-weight: 400; }
+
+  header .tagline {
+    color: var(--text-muted);
+    font-size: 14px;
+    max-width: 46ch;
+  }
+
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 48px);
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin-bottom: 20px;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  input[type="text"] {
+    flex: 1;
+    min-width: 220px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    outline: none;
+  }
+  input:focus { border-color: var(--good); }
+
+  .scan-btn {
+    background: var(--good-dim);
+    border: 1px solid var(--good);
+    color: var(--good);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .scan-btn:hover:not(:disabled) { background: var(--good); color: #06201C; }
+  .scan-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .error-msg {
+    color: var(--bad);
+    font-size: 13px;
+    margin-top: 10px;
+  }
+
+  #results { display: none; }
+
+  .grade-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .grade-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 32px;
+    font-weight: 600;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .grade-badge.a { color: var(--good); border-color: var(--good); background: var(--good-dim); }
+  .grade-badge.b { color: var(--good); border-color: var(--good); background: var(--good-dim); }
+  .grade-badge.c { color: var(--warn); border-color: var(--warn); background: var(--warn-dim); }
+  .grade-badge.d { color: var(--warn); border-color: var(--warn); background: var(--warn-dim); }
+  .grade-badge.f { color: var(--bad); border-color: var(--bad); background: var(--bad-dim); }
+  .grade-meta { font-size: 13.5px; color: var(--text-muted); }
+  .grade-meta strong { color: var(--text); }
+
+  h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin: 0 0 14px;
+  }
+
+  .row-list { display: flex; flex-direction: column; gap: 10px; }
+  .status-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13.5px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
+  .status-row .dot {
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .status-row.pass .dot { background: var(--good); }
+  .status-row.fail .dot { background: var(--bad); }
+  .status-row.info .dot { background: var(--warn); }
+  .status-row .label { font-weight: 500; color: var(--text); }
+  .status-row .detail { color: var(--text-muted); margin-top: 2px; }
+  .status-row .record {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    word-break: break-all;
+  }
+
+  .loading { color: var(--text-muted); font-size: 13.5px; }
+
+  footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 32px 20px 40px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">inspect<span>.</span></div>
+  <div class="tagline">DNS and security header inspector. Checks SPF, DKIM, DMARC, and browser security headers for any domain.</div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="search-row">
+      <input type="text" id="domainInput" class="mono" placeholder="example.com" spellcheck="false" autocomplete="off">
+      <button type="button" class="scan-btn" id="scanBtn">Scan</button>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div id="results">
+    <div class="panel">
+      <div class="grade-row">
+        <div class="grade-badge" id="gradeBadge">-</div>
+        <div class="grade-meta" id="gradeMeta"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Email authentication</h3>
+      <div class="row-list" id="emailAuthRows"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Security headers</h3>
+      <div class="row-list" id="headerRows"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Mail servers</h3>
+      <div class="row-list" id="mxRows"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Built by Tim, a small tool for a specific job. Checks are read only and do not send email or modify anything.
+</footer>
+
+<script>
+(function () {
+  const domainInput = document.getElementById('domainInput');
+  const scanBtn = document.getElementById('scanBtn');
+  const errorMsg = document.getElementById('errorMsg');
+  const results = document.getElementById('results');
+  const gradeBadge = document.getElementById('gradeBadge');
+  const gradeMeta = document.getElementById('gradeMeta');
+  const emailAuthRows = document.getElementById('emailAuthRows');
+  const headerRows = document.getElementById('headerRows');
+  const mxRows = document.getElementById('mxRows');
+
+  function statusRow(status, label, detail, record) {
+    const div = document.createElement('div');
+    div.className = 'status-row ' + status;
+    div.innerHTML =
+      '<span class="dot"></span>' +
+      '<div>' +
+      '<div class="label">' + label + '</div>' +
+      (detail ? '<div class="detail">' + detail + '</div>' : '') +
+      (record ? '<div class="record">' + record + '</div>' : '') +
+      '</div>';
+    return div;
+  }
+
+  function renderEmailAuth(data) {
+    emailAuthRows.innerHTML = '';
+
+    if (data.spf.found) {
+      emailAuthRows.appendChild(statusRow('pass', 'SPF record found',
+        data.spf.strict ? 'Uses a strict fail policy, unauthorized servers are rejected.' :
+        data.spf.soft ? 'Uses a soft fail policy, unauthorized mail is flagged but not always rejected.' :
+        'Present, but its fail policy could not be determined.', data.spf.record));
+    } else {
+      emailAuthRows.appendChild(statusRow('fail', 'No SPF record found',
+        'Without SPF, anyone can send email that appears to come from this domain.'));
+    }
+
+    if (data.dkim.found) {
+      emailAuthRows.appendChild(statusRow('pass', 'DKIM record found (selector: ' + data.dkim.selector + ')',
+        'This domain signs outgoing mail so receivers can verify it was not altered in transit.', data.dkim.record));
+    } else {
+      emailAuthRows.appendChild(statusRow('info', 'No DKIM record found with common selectors',
+        'DKIM selectors are not publicly listed, so this checks common ones (' + data.dkim.checkedSelectors.slice(0, 5).join(', ') + ', and others). A missing result here does not always mean DKIM is absent.'));
+    }
+
+    if (data.dmarc.found) {
+      const strong = data.dmarc.policy === 'reject' || data.dmarc.policy === 'quarantine';
+      emailAuthRows.appendChild(statusRow(strong ? 'pass' : 'info', 'DMARC record found, policy: ' + data.dmarc.policy,
+        strong ? 'Mail that fails SPF or DKIM checks will be rejected or quarantined.' :
+        'Policy is set to "none", meaning failing mail is monitored but still delivered.', data.dmarc.record));
+    } else {
+      emailAuthRows.appendChild(statusRow('fail', 'No DMARC record found',
+        'Without DMARC, there is no policy telling mail providers what to do with spoofed messages from this domain.'));
+    }
+  }
+
+  function renderHeaders(data) {
+    headerRows.innerHTML = '';
+    if (data.headers.error) {
+      headerRows.appendChild(statusRow('fail', 'Could not fetch headers', data.headers.error));
+      return;
+    }
+    data.grade.details.forEach((h) => {
+      headerRows.appendChild(statusRow(h.present ? 'pass' : 'fail', h.label,
+        h.desc, h.present ? String(h.value) : null));
+    });
+  }
+
+  function renderMx(data) {
+    mxRows.innerHTML = '';
+    if (!data.mx || data.mx.length === 0) {
+      mxRows.appendChild(statusRow('info', 'No mail servers found', 'This domain may not receive email directly.'));
+      return;
+    }
+    data.mx.forEach((r) => {
+      mxRows.appendChild(statusRow('pass', r.exchange, 'Priority ' + r.priority));
+    });
+  }
+
+  function renderGrade(data) {
+    gradeBadge.textContent = data.grade.letter;
+    gradeBadge.className = 'grade-badge ' + data.grade.letter.toLowerCase();
+    gradeMeta.innerHTML =
+      '<strong>' + data.domain + '</strong> scores ' + data.grade.pct + '% on security headers.<br>' +
+      'This grade reflects response headers only, not SPF, DKIM, or DMARC, which are shown separately below.';
+  }
+
+  async function scan() {
+    const domain = domainInput.value.trim();
+    errorMsg.textContent = '';
+    results.style.display = 'none';
+
+    if (!domain) {
+      errorMsg.textContent = 'Enter a domain name, for example example.com';
+      return;
+    }
+
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'Scanning...';
+
+    try {
+      const res = await fetch('/api/check?domain=' + encodeURIComponent(domain));
+      const data = await res.json();
+
+      if (!res.ok) {
+        errorMsg.textContent = data.error || 'Something went wrong.';
+        return;
+      }
+
+      renderGrade(data);
+      renderEmailAuth(data);
+      renderHeaders(data);
+      renderMx(data);
+      results.style.display = 'block';
+    } catch (err) {
+      errorMsg.textContent = 'Could not reach the inspector service. Try again in a moment.';
+    } finally {
+      scanBtn.disabled = false;
+      scanBtn.textContent = 'Scan';
+    }
+  }
+
+  scanBtn.addEventListener('click', scan);
+  domainInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') scan();
+  });
+})();
+</script>
+
+</body>
+</html>
