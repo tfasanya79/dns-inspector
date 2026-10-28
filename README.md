@@ -2,7 +2,7 @@
 
 A web tool that checks a domain's email authentication setup and browser security headers, then explains the results in plain English.
 
-Live at: https://aipal-staging.cloud/inspect/
+Live at: https://timfas.com/inspect/
 
 ## What it checks
 
@@ -58,4 +58,4 @@ The server listens on port 8104 by default and serves both the API and the stati
 
 ## Part of a portfolio
 
-This is one of several small, single purpose web tools built for a public portfolio. See the full list at https://aipal-staging.cloud/portfolio/
+This is one of several small, single purpose web tools built for a public portfolio. See the full list at https://timfas.com/
